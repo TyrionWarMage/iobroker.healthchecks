@@ -19,8 +19,8 @@ systemDictionary = {
         "de": "URL",
     },
     "lab_url_long": {
-        "en": "URL to API  |  e.g. https://healthchecks.io/api/v1/checks/",
-        "de": "URL zu API | z.B. https://healthchecks.io/api/v1/checks/",
+        "en": "URL to API  |  e.g. https://healthchecks.io",
+        "de": "URL zu API | z.B. https://healthchecks.io",
     },
     "btn_checkURL": {
         "en": "Check URL",

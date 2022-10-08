@@ -16,12 +16,11 @@ const {
 // eslint-disable-next-line no-unused-vars
 let tmr_GetValues = null;
 
-let sPass = "";
+let apiclient = null;
 // Load your modules here, e.g.:
 // const fs = require("fs");
 
 class Healthchecks extends utils.Adapter {
-
     /**
      * @param {Partial<ioBroker.AdapterOptions>} [options={}]
      */
@@ -60,17 +59,16 @@ class Healthchecks extends utils.Adapter {
         // Reset the connection indicator during startup
         this.setState("info.connection", false, true);
 
-        this.log.debug("##### LOAD CONFIG #####");
+        this.log.debug("Verify config");
         
         //Check refresh interval field, if its's not set, we set it
         if (!Number.isInteger(this.config.inp_refresh)) {
             this.config.inp_refresh = 5;
-            this.log.info("Update-Interval overwritten to: " + this.config.inp_refresh.toString());
-            //bPreCheckErr = true;   If this is not defined we do it! Dont stop :)
+            this.log.info("Update-Interval set to " + this.config.inp_refresh.toString());
         }
         //Check path field, if it's not set, we dont run
         if (this.config.inp_url.length == 0) {
-            this.log.info("## URL emtpy, only Path-Check available");
+            this.log.info("URL not set, abort!");
             bPreCheckErr = true;  //Dont run
         }
 
@@ -78,17 +76,15 @@ class Healthchecks extends utils.Adapter {
         const oConf = await this.getForeignObjectAsync("system.config");
         if (oConf && oConf.native && oConf.native.secret) {
             // @ts-ignore
-            sPass = this.decrypt(oConf.native.secret, this.config.inp_password);
+            this.apikey = this.decrypt(oConf.native.secret, this.config.inp_apikey);
         } else {
-            sPass = this.decrypt("Zgfr56gFe87jJOM", this.config.inp_apikey);
+            this.apikey = this.decrypt("Zgfr56gFe87jJOM", this.config.inp_apikey);
         }
-        this.log.debug("Decrypted the encrypted password!");
+        this.log.debug("Decrypted the encrypted api key!");
 
-        
-        this.log.debug("##### RUN ADAPTER ##### ");
         if (!bPreCheckErr) {
             //Get first Time Token
-            await this.fHTTPGetToken();
+            await this.initClient();
             //Then begin Update Timer
             this.fHTTPGetValues();
         } else {
@@ -211,8 +207,8 @@ class Healthchecks extends utils.Adapter {
     fHTTPCheckURL(oCheckVals) {
         return new Promise((resolve) => {
             const oReqOpt = {
-                "method": "GET",
-                "url": oCheckVals.sURL + "auth"         
+                "method": "POST",
+                "url": oCheckVals.sURL        
             };  
 
             this.log.debug("Called fHTTPCheckURL");
@@ -222,13 +218,8 @@ class Healthchecks extends utils.Adapter {
                         this.log.warn("fHTTPCheckURL Unexpected Error: " + error);
                         resolve(false);
                     } else { 
-                        if (!body.includes("jsonrpc")) {
-                            this.log.warn("fHTTPCheckURL 'jsonrpc' not found in response.");
-                            resolve(false);
-                        } else {
-                            this.log.debug("fHTTPCheckURL success");
-                            resolve(true);
-                        }
+                        this.log.warn("URL returned unexpected response.");
+                        resolve(false);
                     }
                 } catch (e) {
                     this.log.error("##### fHTTPCheckURL CatchError: " + e);
@@ -292,46 +283,28 @@ class Healthchecks extends utils.Adapter {
     }
     
 
-    fHTTPGetToken() {  //NOT ASYNC 
-        return new Promise((resolve) => {
-            const oReqBody = {
-                "id": 1,
-                "method": "login",
-                "params": [this.config.inp_username,sPass]
-            };
-            const oReqOpt = {
-                "method": "GET",
-                "url": this.config.inp_url + "auth",
-                "headers": { "Content-Type": ["application/json", "text/plain"] },
-                "body": JSON.stringify(oReqBody)            
-            };  
-
-            this.log.debug("Called fHTTGetToken");
-            request(oReqOpt, (error, response, body) => {
-                if (this.fValidateHTTPResult(error,response,"GetToken")) {
-                    try {
-                        const oBody = JSON.parse(body);
-                        if (!oBody.error && oBody.result) {
-                            this.log.debug("Saved new Token: " + oBody.result);
-                            this.config.sToken =  oBody.result;
-                            this.setState("info.connection",true,true);
-                        }else{
-                            this.log.debug("##### fHTTPGetToken ResultError: " + body);
-                            this.setState("info.connection",false,true);
-                        }
-                    } catch (e) {
-                        this.log.debug("##### fHTTPGetToken CatchError: " + e);
-                        this.setState("info.connection",false,true);
-                    }
-                } else { 
-                    //Error Message is printed in validate function
-                    this.setState("info.connection",false,true);
-                }
-                resolve(true);
-            });
+    initClient() {  //NOT ASYNC 
+        this.log.debug("Initializing API Client");
+        // Creating a management API client.
+        apiclient = new HealthChecksApiClient({
+          apiKey: this.apikey,
+          baseUrl: this.config.inp_url
         });
+        
+        this.getHealthChecks()
     }
 
+    async getHealthChecks() {
+       try {
+            await apiclient.getChecks();
+            this.log.info("API Client connected");
+            this.setState("info.connection",true,true);
+       } catch(err) {
+            this.log.error("API Client failed: "+err.message);
+            this.setState("info.connection",false,true);
+       }
+    }
+    
     fHTTPGetValues() {
         //Set Timer for next Update
         tmr_GetValues = setTimeout(() =>this.fHTTPGetValues(),this.config.inp_refresh * 60000);

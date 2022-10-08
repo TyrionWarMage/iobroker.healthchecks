@@ -48,11 +48,11 @@
         "js-controller": ">=1.4.2"
       }
     ],
-    "installedFrom": "D:\\Files\\Workspace\\ioBroker.healthchecks"
+    "installedFrom": "D:\\Files\\Workspace\\iobroker\\ioBroker.healthchecks"
   },
   "native": {
     "sToken": "",
-    "inp_url": "https://healthchecks.io/api/v1/checks/",
+    "inp_url": "https://healthchecks.io",
     "inp_apikey": "",
     "inp_refresh": 1
   },
