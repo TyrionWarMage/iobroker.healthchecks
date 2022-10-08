@@ -1,0 +1,210 @@
+<html>
+
+<head>
+
+    <!-- Load ioBroker scripts and styles-->
+    <link rel="stylesheet" type="text/css" href="../../css/adapter.css" />
+    <link rel="stylesheet" type="text/css" href="../../lib/css/materialize.css">
+
+    <script type="text/javascript" src="../../lib/js/jquery-3.2.1.min.js"></script>
+    <script type="text/javascript" src="../../socket.io/socket.io.js"></script>
+
+    <script type="text/javascript" src="../../js/translate.js"></script>
+    <script type="text/javascript" src="../../lib/js/materialize.js"></script>
+    <script type="text/javascript" src="../../js/adapter-settings.js"></script>
+
+    <!-- Load our own files -->
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <script type="text/javascript" src="words.js"></script>
+
+    <script type="text/javascript">
+        var secret;
+
+        function encrypt(key, value) {
+            var result = '';
+            for (var i = 0; i < value.length; ++i) {
+                result += String.fromCharCode(key[i % key.length].charCodeAt(0) ^ value.charCodeAt(i));
+            }
+            return result;
+        }
+
+        function decrypt(key, value) {
+            var result = '';
+            for (var i = 0; i < value.length; ++i) {
+                result += String.fromCharCode(key[i % key.length].charCodeAt(0) ^ value.charCodeAt(i));
+            }
+            return result;
+        }
+
+        var getCommandList = [];
+        var getTypeList = [];
+
+        // This will be called by the admin adapter when the settings page loads
+        function load(settings, onChange) {
+            $('#fTestURL').on('click', (function () {
+                alert(document.getElementById("inp_password").value);
+                //Add last / if not exists on URL
+                if ((document.getElementById("inp_url").value).slice(-1) != "/") {
+                    document.getElementById("inp_url").value = document.getElementById("inp_url").value + "/";
+                } 
+                //Send Check-Request with FormValues to main.js and wait for response
+                sendTo(null, 'checkURL', { 
+                    sURL: document.getElementById("inp_url").value
+                }, function (response) {
+                    if (response == "true") {
+                        document.getElementById("fTestURL").style="background-color: green;";
+                    } else {
+                        document.getElementById("fTestURL").style="background-color: red;";
+                        showMessage("Check ioBroker Log");
+                    }
+                });
+            }));
+
+            $('#fTestAuth').on('click', (function () {
+                //Add last / if not exists on URL
+                if ((document.getElementById("inp_url").value).slice(-1) != "/") {
+                    document.getElementById("inp_url").value = document.getElementById("inp_url").value + "/";
+                } 
+                //Send Check-Request with FormValues to main.js and wait for response
+                sendTo(null, 'checkAuth', { 
+                    sURL: document.getElementById("inp_url").value,
+                    sUser: document.getElementById("inp_username").value,
+                    sPass: document.getElementById("inp_password").value
+                }, function (response) {
+                    if (response == "true") {
+                        document.getElementById("fTestAuth").style="background-color: green;";
+                    } else {
+                        document.getElementById("fTestAuth").style="background-color: red;";
+                    }
+                });
+            }));          
+
+            $('#inp_password').on('keydown', (function () {
+                $('#fTestAuth').removeClass('disabled');
+            }));
+
+            socket.emit('getObject', 'system.config', function (err, obj) {
+                secret = (obj.native ? obj.native.secret : '') || 'Zgfr56gFe87jJOM';
+
+                // example: select elements with id=key and class=value and insert value
+                if (!settings) return;
+                $('.value').each(function () {
+                    var $key = $(this);
+                    var id = $key.attr('id');
+                    if (id === 'inp_password') {
+                        settings[id] = decrypt(secret, settings[id]);
+                    }
+                    if ($key.attr('type') === 'checkbox') {
+                        // do not call onChange direct, because onChange could expect some arguments
+                        $key.prop('checked', settings[id])
+                            .on('change', () => onChange())
+                            ;
+                    } else {
+                        // do not call onChange direct, because onChange could expect some arguments
+                        $key.val(settings[id])
+                            .on('change', () => onChange())
+                            .on('keyup', () => onChange())
+                            ;
+                    }
+                });
+
+                getCommandList = settings.list_commands || [];
+                getTypeList = settings.list_types || [];
+                onChange(false);
+                values2table("list_commands", getCommandList, onChange);
+                values2table("list_types", getTypeList, onChange);
+                // reinitialize all the Materialize labels on the page if you are dynamically adding inputs:
+                if (M) M.updateTextFields();
+
+                //Enable Auth BTN if password field is empty
+                if (document.getElementById("inp_password").value == "") {
+                    $('#fTestAuth').removeClass('disabled');
+                }
+            });
+        }
+
+        // This will be called by the admin adapter when the user presses the save button
+        function save(callback) {
+            // example: select elements with class=value and build settings object
+            var obj = {};
+            $('.value').each(function () {
+                var $this = $(this);
+                switch ($this.attr('type')) {
+                    case 'checkbox':
+                        obj[$this.attr('id')] = $this.prop('checked');
+                        break;
+                    case 'number':
+                        obj[$this.attr('id')] = parseInt($this.val(), 10);
+                        break;
+                    default:
+                        obj[$this.attr('id')] = $this.data('crypt') && $this.val() ? encrypt(secret, $this.val()) : $this.val();
+                        break;
+                }
+            });
+            obj.list_commands = table2values("list_commands");
+            obj.list_types = table2values("list_types");
+            callback(obj);
+        }
+    </script>
+
+    <style>
+        /* Title of each section */
+        .title { font-weight: bold; }
+        /* Info text of each section */
+        .info { margin-left: 1em; }
+        /* Table header */
+        .table-values th { height: 2em; background-color:#2196F3; font-size:90%; }
+        /* Table: Add button */
+        .table-button-add { margin: 0.3em 0 1em 0; }
+    </style>
+</head>
+
+<body>
+
+    <div class="m adapter-container">
+
+        <div class="row">
+            <div class="col s12 m6 l4">
+                <img src="healthchecks.png" class="logo">
+            </div>
+        </div>
+
+        <div class="row">
+            <p class="translate title">lab_general</p>
+            <p class="translate info">text_general</p>
+        </div>
+
+         <div class="row">
+            <div class="input-field col s12 m6 l4">
+                <input class="value" type="text" id="inp_url" />
+                <label for="inp_url" class="translate">lab_url_short</label>
+                <i><span class="translate">lab_url_long</span></i>
+            </div>
+
+            <div class="col s6">
+                <a id="fTestURL" class="btn"><span class="translate">btn_checkURL</span></a>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="input-field col s12 m6 l2">
+                <input class="value" data-crypt="1" type="password" id="inp_apikey" />
+                <label for="inp_apikey" class="translate">lab_apikey_short</label>
+                <i><span class="translate">lab_apikey_long</span></i>
+            </div>
+            <div class="col s6">
+                <a id="fTestAuth" class="btn disabled"><span class="translate">btn_checkAuth</span></a>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="input-field col s12 m6 l4">
+                <input class="value" type="number" id="inp_refresh" />
+                <label for="inp_refresh" class="translate">lab_refresh_short</label>
+                <i><span class="translate">lab_refresh_long</span></i>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

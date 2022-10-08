@@ -1,0 +1,83 @@
+{
+  "common": {
+    "name": "healthchecks",
+    "version": "0.0.1",
+    "news": {
+      "0.0.1": {
+        "en": "initial release",
+        "de": "Erstveröffentlichung"
+      }
+    },
+    "title": "Healthchecks",
+    "titleLang": {
+      "en": "Healthchecks",
+      "de": "Healthchecks"
+    },
+    "desc": {
+      "en": "Interact with the healthchecks API",
+      "de": "Interagiere mit der healthchecks API"
+    },
+    "authors": [
+      "TyrionWarMage <contact@christianwirth.net>"
+    ],
+    "keywords": [
+      "healthchecks",
+      "network",
+      "api"
+    ],
+    "license": "MIT",
+    "platform": "Javascript/Node.js",
+    "messagebox": true,
+    "message": true,
+    "subscribe": "messagebox",
+    "main": "main.js",
+    "icon": "healthchecks.png",
+    "enabled": true,
+    "extIcon": "https://raw.githubusercontent.com/Schnup89/ioBroker.openwrt/master/admin/openwrt.png",
+    "readme": "https://github.com/Schnup89/ioBroker.openwrt/blob/master/README.md",
+    "loglevel": "info",
+    "mode": "daemon",
+    "type": "infrastructure",
+    "compact": true,
+    "connectionType": "local",
+    "dataSource": "poll",
+    "materialize": true,
+    "supportCustoms": false,
+    "dependencies": [
+      {
+        "js-controller": ">=1.4.2"
+      }
+    ],
+    "installedFrom": "D:\\Files\\Workspace\\ioBroker.healthchecks"
+  },
+  "native": {
+    "sToken": "",
+    "inp_url": "https://healthchecks.io/api/v1/checks/",
+    "inp_apikey": "",
+    "inp_refresh": 1
+  },
+  "objects": [],
+  "instanceObjects": [
+    {
+      "_id": "info",
+      "type": "channel",
+      "common": {
+        "name": "Information"
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.connection",
+      "type": "state",
+      "common": {
+        "role": "indicator.connected",
+        "name": "Device or service connected",
+        "type": "boolean",
+        "read": true,
+        "write": false,
+        "def": false
+      },
+      "native": {}
+    }
+  ]
+}
