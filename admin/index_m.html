@@ -41,40 +41,16 @@
 
         // This will be called by the admin adapter when the settings page loads
         function load(settings, onChange) {
-            $('#fTestURL').on('click', (function () {
-                alert(document.getElementById("inp_password").value);
-                //Add last / if not exists on URL
-                if ((document.getElementById("inp_url").value).slice(-1) != "/") {
-                    document.getElementById("inp_url").value = document.getElementById("inp_url").value + "/";
-                } 
+            $('#checkLogin').on('click', (function () {
                 //Send Check-Request with FormValues to main.js and wait for response
-                sendTo(null, 'checkURL', { 
-                    sURL: document.getElementById("inp_url").value
+                sendTo(null, 'checkLogin', { 
+                    base_url: document.getElementById("inp_url").value,
+                    apikey: document.getElementById("inp_apikey").value
                 }, function (response) {
                     if (response == "true") {
-                        document.getElementById("fTestURL").style="background-color: green;";
+                        document.getElementById("checkLogin").style="background-color: green;";
                     } else {
-                        document.getElementById("fTestURL").style="background-color: red;";
-                        showMessage("Check ioBroker Log");
-                    }
-                });
-            }));
-
-            $('#fTestAuth').on('click', (function () {
-                //Add last / if not exists on URL
-                if ((document.getElementById("inp_url").value).slice(-1) != "/") {
-                    document.getElementById("inp_url").value = document.getElementById("inp_url").value + "/";
-                } 
-                //Send Check-Request with FormValues to main.js and wait for response
-                sendTo(null, 'checkAuth', { 
-                    sURL: document.getElementById("inp_url").value,
-                    sUser: document.getElementById("inp_username").value,
-                    sPass: document.getElementById("inp_password").value
-                }, function (response) {
-                    if (response == "true") {
-                        document.getElementById("fTestAuth").style="background-color: green;";
-                    } else {
-                        document.getElementById("fTestAuth").style="background-color: red;";
+                        document.getElementById("checkLogin").style="background-color: red;";
                     }
                 });
             }));          
@@ -180,10 +156,6 @@
                 <label for="inp_url" class="translate">lab_url_short</label>
                 <i><span class="translate">lab_url_long</span></i>
             </div>
-
-            <div class="col s6">
-                <a id="fTestURL" class="btn"><span class="translate">btn_checkURL</span></a>
-            </div>
         </div>
 
         <div class="row">
@@ -193,7 +165,7 @@
                 <i><span class="translate">lab_apikey_long</span></i>
             </div>
             <div class="col s6">
-                <a id="fTestAuth" class="btn disabled"><span class="translate">btn_checkAuth</span></a>
+                <a id="checkLogin" class="btn"><span class="translate">btn_checkLogin</span></a>
             </div>
         </div>
 

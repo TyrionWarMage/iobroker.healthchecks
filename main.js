@@ -84,9 +84,10 @@ class Healthchecks extends utils.Adapter {
 
         if (!bPreCheckErr) {
             //Get first Time Token
-            await this.initClient();
+            this.client = this.initClient(this.config.inp_url,this.apikey);
+            this.getHealthChecks(this.client)
             //Then begin Update Timer
-            this.fHTTPGetValues();
+            this.getValues();
         } else {
             this.log.error("##### PRE CHECK ERRORS, MAIN FUNCTIONS DISABLED! Check Settings");
         }
@@ -185,84 +186,30 @@ class Healthchecks extends utils.Adapter {
     //  * @param {ioBroker.Message} obj
     //  */
     async onMessage(obj) {
+        this.log.debug("message handling: " + obj);
         if (typeof obj === "object") {
-            //Check if URL Reachable
-            if (obj.command === "checkURL") {
-                //save Command Result true/false
-                const bCheckRes = await this.fHTTPCheckURL(obj.message);
-                //send Result back
-                if (obj.callback) this.sendTo(obj.from, obj.command, bCheckRes.toString(), obj.callback);
-            }
-
             //Check if AUTH OK
-            if (obj.command === "checkAuth") {
+            if (obj.command === "checkLogin") {
                 //save Command Result true/false
-                const bCheckRes = await this.fHTTPCheckAuth(obj.message);
+                const check_result = await this.checkLogin(obj.message);
                 //send Result back
-                if (obj.callback) this.sendTo(obj.from, obj.command, bCheckRes.toString(), obj.callback);
+                if (obj.callback) this.sendTo(obj.from, obj.command, check_result.toString(), obj.callback);
             }
         }
     }
 
-    fHTTPCheckURL(oCheckVals) {
-        return new Promise((resolve) => {
-            const oReqOpt = {
-                "method": "POST",
-                "url": oCheckVals.sURL        
-            };  
-
-            this.log.debug("Called fHTTPCheckURL");
-            request(oReqOpt, (error, response, body) => {
-                try {
-                    if (error) {
-                        this.log.warn("fHTTPCheckURL Unexpected Error: " + error);
-                        resolve(false);
-                    } else { 
-                        this.log.warn("URL returned unexpected response.");
-                        resolve(false);
-                    }
-                } catch (e) {
-                    this.log.error("##### fHTTPCheckURL CatchError: " + e);
-                }
-            });
-        });
-    }
-
-    fHTTPCheckAuth(oCheckVals) {
-        return new Promise((resolve) => {
-            const oReqBody = {
-                "id": 1,
-                "method": "login",
-                "params": [oCheckVals.sUser,oCheckVals.sPass]
-            };
-            const oReqOpt = {
-                "method": "GET",
-                "url": oCheckVals.sURL + "auth",
-                "headers": { "Content-Type": ["application/json", "text/plain"] },
-                "body": JSON.stringify(oReqBody)            
-            };   
-            this.log.debug("Called fHTTPCheckAuth");
-            request(oReqOpt, (error, response, body) => {
-                try {
-                    if (this.fValidateHTTPResult(error,response,"CheckAuth")) {
-                        const oBody = JSON.parse(body);
-                        if (!oBody.error && oBody.result) {
-                            this.log.debug("fHTTPCheckAuth success");
-                            resolve(true);
-                        }else{
-                            this.log.error("fHTTPCheckAuth ResultError: " + body);
-                            resolve(false);
-                        }
-                    } else {
-                        //Log Message printed in fValidateHTTPResult function
-                        resolve(false);
-                    }
-                    resolve(true);
-                } catch (e) {
-                    this.log.error("##### fHTTPCheckAuth CatchError: " + e);
-                }
-            });
-        });
+    async checkLogin(oCheckVals) {
+        this.log.debug("tryLogin: " + oCheckVals); 
+        try {
+            const client = this.initClient(oCheckVals.base_url,oCheckVals.apikey);
+            const checks = await this.getHealthChecks(client);
+            if (checks !== null) {
+                return true;
+            }   
+        } catch(err) {
+            this.log.error("tryLogin failed: " + err);   
+        }
+        return false;
     }
 
 
@@ -283,31 +230,33 @@ class Healthchecks extends utils.Adapter {
     }
     
 
-    initClient() {  //NOT ASYNC 
+    initClient(base_url,apikey) {  //NOT ASYNC 
         this.log.debug("Initializing API Client");
         // Creating a management API client.
         apiclient = new HealthChecksApiClient({
-          apiKey: this.apikey,
-          baseUrl: this.config.inp_url
+          apiKey: apikey,
+          baseUrl: base_url
         });
         
-        this.getHealthChecks()
+        return apiclient
     }
 
-    async getHealthChecks() {
+    async getHealthChecks(client) {
        try {
-            await apiclient.getChecks();
+            const checks = await client.getChecks();
             this.log.info("API Client connected");
             this.setState("info.connection",true,true);
+            return checks
        } catch(err) {
             this.log.error("API Client failed: "+err.message);
             this.setState("info.connection",false,true);
+            return null
        }
     }
     
-    fHTTPGetValues() {
+    getValues() {
         //Set Timer for next Update
-        tmr_GetValues = setTimeout(() =>this.fHTTPGetValues(),this.config.inp_refresh * 60000);
+        tmr_GetValues = setTimeout(() =>this.getValues(),this.config.inp_refresh * 60000);
     }
 
     // eslint-disable-next-line no-unused-vars

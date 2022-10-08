@@ -22,10 +22,6 @@ systemDictionary = {
         "en": "URL to API  |  e.g. https://healthchecks.io",
         "de": "URL zu API | z.B. https://healthchecks.io",
     },
-    "btn_checkURL": {
-        "en": "Check URL",
-        "de": "URL prüfen",
-    },
     "lab_apikey_short": {
         "en": "Healthchecks API Key",
         "de": "Healthchecks API Key",
@@ -34,9 +30,9 @@ systemDictionary = {
         "en": "Healthchecks API Key (read/write)",
         "de": "Healthchecks API Key (read/write)",
     },
-    "btn_checkAuth": {
-        "en": "Check Auth",
-        "de": "Authentifizierung prüfen",
+    "btn_checkLogin": {
+        "en": "Check login",
+        "de": "Login prüfen",
     },
     "lab_refresh_short": {
         "en": "Refresh interval",
