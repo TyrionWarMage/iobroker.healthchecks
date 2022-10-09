@@ -40,8 +40,7 @@ class Healthchecks extends utils.Adapter {
         this.on("message", this.onMessage.bind(this));
         this.on("unload", this.onUnload.bind(this));
         
-        this.updateTrigger = null;
-        this.createDevice("checks")
+        this.updateTrigger = null;   
     }
 
     decrypt(key, value) {
@@ -91,9 +90,21 @@ class Healthchecks extends utils.Adapter {
 
         if (!preCheckFailure) {
             this.client = this.initClient(this.config.inp_url,this.apikey);
-            const checks = await this.getHealthChecks(this.client);
-            if (checks !== null) {
-                this.updateChecks();    
+            const checks = await this.tryChecks(this.client);
+            if (checks === true) {
+                this.setState("info.connection",true,true);
+                this.getDevices((err,result) => {
+                    const device_names = result.map(device => device.common.name)
+                    if (!(device_names.includes("checks"))) {
+                        this.createDevice("checks", (err,result) => {
+                            this.updateChecks();
+                        });    
+                    } else {
+                        this.updateChecks();    
+                    }   
+                });     
+            } else {
+                this.setState("info.connection",false,true);
             }
         } else {
             this.log.error("Initialization failed.");
@@ -145,8 +156,8 @@ class Healthchecks extends utils.Adapter {
         this.log.debug("tryLogin: " + oCheckVals); 
         try {
             const client = this.initClient(oCheckVals.base_url,oCheckVals.apikey);
-            const checks = await this.getHealthChecks(client);
-            if (checks !== null) {
+            const checks = await this.tryChecks(client);
+            if (checks === true) {
                 return true;
             }   
         } catch(err) {
@@ -166,44 +177,46 @@ class Healthchecks extends utils.Adapter {
         return apiclient
     }
 
-    async getHealthChecks(client) {
+    async tryChecks(client) {
        try {
-            const checks = await client.getChecks();
+            await client.getChecks();
             this.log.info("API Client connected");
-            this.setState("info.connection",true,true);
-            return checks
+            return true;
        } catch(err) {
             this.log.error("API Client failed: "+err.message);
-            this.setState("info.connection",false,true);
-            return null
+            return false;
        }
     }
     
-    async updateChecks() {
+    updateChecks() {
         //Set Timer for next Update
+        this.log.debug("Updating checks");
+        
         this.updateTrigger = setTimeout(() =>this.updateChecks(),this.config.inp_refresh * 60000);
-        const checks = await this.getHealthChecks(this.client)
         
-        this.getChannelsOf("checks",(err,channels) => {
-            let old_checks = channels.map(channel => channel.common.name);
-
-            for (const check of checks.checks) {
-                if (!old_checks.includes(check.name)) {
-                    this.createChannel("checks",check.name);  
-                    this.log.debug("Created channel "+check.name)
-                } else {
-                    old_checks.remove(check.name);
+        this.client.getChecks().then(checks => {
+            this.getChannelsOf("checks",(err,channels) => {
+                let old_checks = channels.map(channel => channel.common.name);
+    
+                for (const check of checks.checks) {
+                    if (!old_checks.includes(check.name)) {
+                        this.createChannel("checks",check.name);  
+                        this.log.debug("Created channel "+check.name)
+                    } else {
+                        old_checks.remove(check.name);
+                    }
+                    for (const [subkey, subvalue] of Object.entries(check)) {
+                        this.updateStates(subkey, subvalue, "checks."+check.name);
+                    }
+                }   
+                
+                for (const check_name of old_checks) {
+                    this.deleteChannel("checks",check_name); 
                 }
-                for (const [subkey, subvalue] of Object.entries(check)) {
-                    this.updateStates(subkey, subvalue, "checks."+check.name);
-                }
-            }   
             
-            for (const check_name of old_checks) {
-                this.deleteChannel("checks",check_name); 
-            }
-        
-        });
+            })}).catch(err => {
+                this.log.error("Could not get checks: "+err);    
+            });
         
     }
 
