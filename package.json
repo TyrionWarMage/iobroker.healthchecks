@@ -6,7 +6,7 @@
     "name": "TyrionWarmage",
     "email": "contact@christianwirth.net"
   },
-  "homepage": "https://github.com/Schnup89/ioBroker.openwrt",
+  "homepage": "https://github.com/TyrionWarMage/iobroker.healthchecks.git",
   "license": "MIT",
   "keywords": [
     "healthchecks",
@@ -15,7 +15,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Schnup89/ioBroker.openwrt"
+    "url": "https://github.com/TyrionWarMage/iobroker.healthchecks.git"
   },
   "dependencies": {
     "@iobroker/adapter-core": "^2.3.0",
@@ -54,7 +54,7 @@
     "lint": "eslint"
   },
   "bugs": {
-    "url": "https://github.com/Schnup89/ioBroker.openwrt/issues"
+    "url": "https://github.com/TyrionWarMage/iobroker.healthchecks/issues"
   },
   "readmeFilename": "README.md"
 }
