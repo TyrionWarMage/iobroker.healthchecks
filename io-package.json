@@ -1,9 +1,9 @@
 {
   "common": {
     "name": "healthchecks",
-    "version": "0.1",
+    "version": "0.1.0",
     "news": {
-      "0.1": {
+      "0.1.0": {
         "en": "initial release",
         "de": "Erstveröffentlichung"
       }
@@ -48,7 +48,7 @@
         "js-controller": ">=1.4.2"
       }
     ],
-    "installedFrom": "D:\\Files\\Workspace\\iobroker\\ioBroker.healthchecks"
+    "installedFrom": "TyrionWarMage/iobroker.healthchecks#4e35e253eb2cea9c71c07a6b70772b8976af5c21"
   },
   "native": {
     "sToken": "",
