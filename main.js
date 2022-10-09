@@ -185,21 +185,21 @@ class Healthchecks extends utils.Adapter {
         const checks = await this.getHealthChecks(this.client)
         
         this.getChannelsOf("checks",(err,channels) => {
-            let old_checks = Object.assign({}, ...channels.map((channel) => ({[channel.common.name]: channel._id})));
+            let old_checks = channels.map(channel => channel.common.name);
 
             for (const check of checks.checks) {
-                if (!check.name in old_checks) {
+                if (!old_checks.includes(check.name)) {
                     this.createChannel("checks",check.name);  
                     this.log.debug("Created channel "+check.name)
                 } else {
-                    delete old_checks[check.name];
+                    old_checks.remove(check.name);
                 }
                 for (const [subkey, subvalue] of Object.entries(check)) {
                     this.updateStates(subkey, subvalue, "checks."+check.name);
                 }
             }   
             
-            for (const [check_name,id] of Object.entries(old_checks)) {
+            for (const check_name of old_checks) {
                 this.deleteChannel("checks",check_name); 
             }
         
