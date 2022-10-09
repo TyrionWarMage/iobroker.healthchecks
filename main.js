@@ -132,9 +132,17 @@ class Healthchecks extends utils.Adapter {
 
     onStateChange(id, state) {
         if (state) {
-
+            if (state.from != 'system.adapter.' + this.namespace) {
+                let uuid_key = id.split(".");
+                uuid_key = uuid_key.slice(0,uuid_key.length - 1).join(".") + ".uuid";
+                this.getState(uuid_key,(err,uuid) => {
+                    const key = id.split(".").pop();
+                    let params = {};
+                    params[key] = state.val;
+                    this.client.updateCheck(uuid.val,params).catch(err => {this.log.error("Check updated failed: "+err)});  
+                });             
+            }
         } else {
-            // The state was deleted
             this.log.debug(`state ${id} deleted`);
         }
     }
@@ -205,8 +213,18 @@ class Healthchecks extends utils.Adapter {
                     } else {
                         old_checks.remove(check.name);
                     }
+                    
+                    if(!('tz' in check)) {
+                        check['tz'] = null;
+                    }
+                    const uuid = check.ping_url.split("/").pop();
+                    check.uuid = uuid;
+                    let identifier = check.uuid;
+                    if ('name' in check) {
+                        identifier = check.name;
+                    }
                     for (const [subkey, subvalue] of Object.entries(check)) {
-                        this.updateStates(subkey, subvalue, "checks."+check.name);
+                        this.updateStates(subkey, subvalue, "checks."+identifier);
                     }
                 }   
                 
@@ -222,7 +240,12 @@ class Healthchecks extends utils.Adapter {
 
     updateStates(key, value, root) {
     
-        let state_obj = { name: key, type: "", role: "", read: true, write: true };    
+        const writeable = ["name","tags","desc","timeout","grace","schedule","tz","manual_resume","methods","channels","success_kw","failure_kw","filter_subject","filter_body"];
+        let state_obj = { name: key, type: "", role: "", read: true, write: false };    
+        if (writeable.includes(key)) {
+            state_obj.write = true;    
+        }
+        
         switch(type.get(value)) {
             case "string":
                 const time = Date.parse(value);
@@ -255,7 +278,7 @@ class Healthchecks extends utils.Adapter {
                 break;
             default:
                 this.log.warn("Unhandled DataType: " + type.get(value) + " for " + key);
-                return;  // Do Nothing
+                return;
         }
 
         this.setObjectNotExists(root + "." + key, {
