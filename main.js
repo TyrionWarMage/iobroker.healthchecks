@@ -7,18 +7,22 @@
 // The adapter-core module gives you access to the core ioBroker functions
 // you need to create an adapter
 const utils = require("@iobroker/adapter-core");
-const request = require("request");
+const type = require("get-type");
 const {
   HealthChecksPingClient,
   HealthChecksApiClient
 } = require('healthchecks-io-client');
 
-// eslint-disable-next-line no-unused-vars
-let tmr_GetValues = null;
-
-let apiclient = null;
-// Load your modules here, e.g.:
-// const fs = require("fs");
+Array.prototype.remove = function() {
+    var what, a = arguments, L = a.length, ax;
+    while (L && this.length) {
+        what = a[--L];
+        while ((ax = this.indexOf(what)) !== -1) {
+            this.splice(ax, 1);
+        }
+    }
+    return this;
+};
 
 class Healthchecks extends utils.Adapter {
     /**
@@ -35,6 +39,9 @@ class Healthchecks extends utils.Adapter {
         this.on("stateChange", this.onStateChange.bind(this));
         this.on("message", this.onMessage.bind(this));
         this.on("unload", this.onUnload.bind(this));
+        
+        this.updateTrigger = null;
+        this.createDevice("checks")
     }
 
     decrypt(key, value) {
@@ -42,7 +49,7 @@ class Healthchecks extends utils.Adapter {
         for (let i = 0; i < value.length; ++i) {
             result += String.fromCharCode(key[i % key.length].charCodeAt(0) ^ value.charCodeAt(i));
         }
-        this.log.debug("client_secret decrypt ready");
+        this.log.debug("API key decrypted");
         return result;
     }
 
@@ -54,7 +61,7 @@ class Healthchecks extends utils.Adapter {
      * Is called when databases are connected and adapter received configuration.
      */
     async onReady() {
-        let bPreCheckErr = false;   //We can't stop the adapter since we need it 4 url and auth check. Make preCheck, if error found don't run main functions 
+        let preCheckFailure = false;   //We can't stop the adapter since we need it 4 url and auth check. Make preCheck, if error found don't run main functions 
 
         // Reset the connection indicator during startup
         this.setState("info.connection", false, true);
@@ -69,7 +76,7 @@ class Healthchecks extends utils.Adapter {
         //Check path field, if it's not set, we dont run
         if (this.config.inp_url.length == 0) {
             this.log.info("URL not set, abort!");
-            bPreCheckErr = true;  //Dont run
+            preCheckFailure = true;  //Dont run
         }
 
         //Get encrypted Password
@@ -82,47 +89,15 @@ class Healthchecks extends utils.Adapter {
         }
         this.log.debug("Decrypted the encrypted api key!");
 
-        if (!bPreCheckErr) {
-            //Get first Time Token
+        if (!preCheckFailure) {
             this.client = this.initClient(this.config.inp_url,this.apikey);
-            this.getHealthChecks(this.client)
-            //Then begin Update Timer
-            this.getValues();
+            const checks = await this.getHealthChecks(this.client);
+            if (checks !== null) {
+                this.updateChecks();    
+            }
         } else {
-            this.log.error("##### PRE CHECK ERRORS, MAIN FUNCTIONS DISABLED! Check Settings");
+            this.log.error("Initialization failed.");
         }
-        
-        //Object2SendCMD
-        this.setObjectNotExists("sendCommand", {
-            type: "state",
-            common: { name: "sendCommand", type: "string", role: "text", write: true},
-            native: {}  
-        }, (id, error) => {this.setState("sendCommand", "", true);});
-        
-        //Object2WriteResult
-        this.setObjectNotExists("sendCommandLastResult", {
-            type: "state",
-            common: { name: "sendCommand", type: "string", role: "text", write: false},
-            native: {}  
-        }, (id, error) => {this.setState("sendCommandLastResult", "", true);});
-
-        this.getDevices((err,devices) => {
-            const device_list = this.config.list_commands.map(entry => {return entry.alias});
-            device_list.forEach(device => {
-                this.setObjectNotExists(device, {
-                    type: "device",
-                    common: { name: device},
-                    native: {}                  
-                });                
-            });
-            devices.forEach(device => {
-                const device_name = device._id.replace(this.namespace+".","");
-                if (!device_list.includes(device_name)) {
-                    this.delObject(device_name, {recursive: true})
-                }
-            })
-        });
-           
                        
         this.subscribeStates("*");
     }
@@ -133,9 +108,9 @@ class Healthchecks extends utils.Adapter {
      */
     onUnload(callback) {
         try {
-            if (tmr_GetValues) {
-                clearInterval(tmr_GetValues);
-                tmr_GetValues = null;
+            if (this.updateTrigger) {
+                clearInterval(this.updateTrigger);
+                this.updateTrigger = null;
             }
             this.log.info("cleaned everything up...");
             callback();
@@ -144,47 +119,15 @@ class Healthchecks extends utils.Adapter {
         }
     }
 
-    /**
-    // * Is called if a subscribed object changes
-    // * @param {string} id
-    // * @param {ioBroker.Object | null | undefined} obj
-    */
-
-    /*onObjectChange(id, obj) {
-        if (obj) {
-            // The object was changed
-            this.log.info(`object ${id} changed: ${JSON.stringify(obj)}`);
-        } else {
-            // The object was deleted
-            this.log.info(`object ${id} deleted`);
-        }
-    }*/
-
-    /**
-    //  * Is called if a subscribed state changes
-    // * @param {string} id
-    //* @param {ioBroker.State | null | undefined} state
-    */
-
     onStateChange(id, state) {
         if (state) {
-            // The state was changed
-            if (id == this.namespace + ".sendCommand" && state.val) { //& value not "" empty 
-                this.log.debug("SendCommand: " + state.val);
-                this.fHTTPSendCommand(state.val, true);
-                this.setState("sendCommand", "");
-            }
+
         } else {
             // The state was deleted
             this.log.debug(`state ${id} deleted`);
         }
     }
 
-    // /**
-    //  * Some message was sent to this instance over message box. Used by email, pushover, text2speech, ...
-    //  * Using this method requires "common.message" property to be set to true in io-package.json
-    //  * @param {ioBroker.Message} obj
-    //  */
     async onMessage(obj) {
         this.log.debug("message handling: " + obj);
         if (typeof obj === "object") {
@@ -211,29 +154,11 @@ class Healthchecks extends utils.Adapter {
         }
         return false;
     }
-
-
-    async fValidateHTTPResult(error, response, sFuncName) {
-        if (error) {
-            this.log.warn("##### fHTTP" + sFuncName + " ERROR: " + error.toString());
-            return false;  //Error
-        } else {
-            if (!(response.statusCode == 200)) {
-                this.log.debug("##### fHTTP" + sFuncName + " HTTPCode: " + response.statusCode);
-                if (response.statusCode == 403) {
-                    await this.fHTTPGetToken();
-                }
-                return false;  //Error
-            } 
-        }
-        return true;  //NO Error
-    }
     
-
     initClient(base_url,apikey) {  //NOT ASYNC 
         this.log.debug("Initializing API Client");
         // Creating a management API client.
-        apiclient = new HealthChecksApiClient({
+        const apiclient = new HealthChecksApiClient({
           apiKey: apikey,
           baseUrl: base_url
         });
@@ -254,127 +179,77 @@ class Healthchecks extends utils.Adapter {
        }
     }
     
-    getValues() {
+    async updateChecks() {
         //Set Timer for next Update
-        tmr_GetValues = setTimeout(() =>this.getValues(),this.config.inp_refresh * 60000);
-    }
-
-    // eslint-disable-next-line no-unused-vars
-    fOverrideExists(sKey) {
-        const sType = "";
-        const sRole = "";
-        //ToDo, check if Override exists, change const to let and overrite it!
-        return { name: "", type: sType, role: sRole, read: true, write: false };
-    }
-    
-    fHTTPSendCommand(sCMD, bFirstTry) {
-        const oReqBody = {
-            "method": "exec",
-            "params": [ sCMD ]
-        };
-        const oReqOpt = {
-            "method": "POST",
-            "url": this.config.inp_url + "sys?auth="+this.config.sToken,
-            "headers": {
-                "Content-Type": ["application/json", "text/plain"]
-            },
-            "body": JSON.stringify(oReqBody)            
-        };
-
-        request(oReqOpt, async (error, response, body) => {
-            if (await this.fValidateHTTPResult(error,response,"SendCommand, " + sCMD)) {
-                try {
-                    //bug... output \n\t\ seems broken, delete it
-                    body = this.replaceAll(body,"\n\t","");
-                    let sBody = JSON.stringify(JSON.parse(body)); 
-                    sBody = sBody.replace(/\\t/g,"");
-                    sBody = sBody.replace(/\\n/g,"");
-                    sBody = sBody.replace(/\\r/g,"");
-                    this.setState("sendCommandLastResult",sBody);
-                } catch (e) {
-                    this.log.error("##### SendCommand, " + sCMD + " + CatchError: " + e);
-                    this.setState("sendCommandLastResult","{ \"error\": \"" + e + "\" }");
-                }
-            } else {
-                if (bFirstTry) {
-                    this.fHTTPSendCommand(sCMD, false); //If Token was not valid, this ensures it gets renew while fvalidehttpresult
-                } else {
-                    this.setState("sendCommandLastResult",JSON.stringify(response));
-                }
-            }
-        });
-    }
-
-
-    //##################### DATA FUNCTION
-
-    fSetValue2State(oValue, oKey, sFolder, oTree, channelnames){
-        // eslint-disable-next-line prefer-const
-        let oCommon = this.fOverrideExists(oKey);
-        oCommon.name = oKey;
+        this.updateTrigger = setTimeout(() =>this.updateChecks(),this.config.inp_refresh * 60000);
+        const checks = await this.getHealthChecks(this.client)
         
-        //this.log.info(oKey + ": " + type.get(oValue));
-        if (oCommon.type == "") { //NOT Overwritten
-            switch(type.get(oValue)) {
-                case "string":
-                    oCommon.type = "string"; 
-                    oCommon.role =  "string";
-                    oCommon.write = false;
-                    break;
-                case "number":
-                    oCommon.type = "number"; 
-                    oCommon.role =  "value";
-                    oCommon.write = false;
-                    break;
-                case "boolean":
-                    oCommon.type = "boolean"; 
-                    oCommon.role =  "inidicator";
-                    oCommon.write = false;
-                    break;
-                case "array":
-                    if (Object.entries(oTree[oKey]).length) {  
-                        this.setObjectNotExists(sFolder + "." + oKey, {
-                            type: "channel",
-                            native: {}    
-                        });
-                        channelnames.remove(this.namespace + "." + sFolder + "." + oKey);
-                        this.fSetValue2State(true,"isAvailable",sFolder+"."+oKey,oTree[oKey], channelnames);
-                        this.fSetValue2State(this.formatDate(new Date(), "TT.MM.JJJJ hh:mm:ss"),"lastUpdate",sFolder+"."+oKey,oTree[oKey], channelnames);
-  
-                        for (const [key, value] of Object.entries(oTree[oKey])) {
-                            oValue = oValue + ", "+ value;
-                            this.fSetValue2State(value,key,sFolder+"."+oKey,oTree[oKey], channelnames);
-                        }      
-                        oValue.slice(-1);
-                    }
-                    return; //No need to set this Parent Object
-                case "object":
-                    if (Object.entries(oTree[oKey]).length) {
-                        this.setObjectNotExists(sFolder + "." + oKey, {
-                            type: "channel",
-                            native: {}    
-                        });
-                        channelnames.remove(this.namespace + "." + sFolder + "." + oKey);
-                        this.fSetValue2State(true,"isAvailable",sFolder+"."+oKey,oTree[oKey], channelnames);
-                        this.fSetValue2State(this.formatDate(new Date(), "TT.MM.JJJJ hh:mm:ss"),"lastUpdate",sFolder+"."+oKey,oTree[oKey], channelnames);
-                        
-                        for (const [key, value] of Object.entries(oTree[oKey])) {
-                            oValue = oValue + ", "+ value;
-                            this.fSetValue2State(value,key,sFolder+"."+oKey,oTree[oKey], channelnames);
-                        }   
-                        oValue.slice(-1); 
-                    }  
-                    return; //No need to set this Parent Object
-                default:
-                    this.log.warn("Unhandled DataType: " + type.get(oValue) + " for " + oKey);
-                    return;  // Do Nothing
+        this.getChannelsOf("checks",(err,channels) => {
+            let old_checks = Object.assign({}, ...channels.map((channel) => ({[channel.common.name]: channel._id})));
+
+            for (const check of checks.checks) {
+                if (!check.name in old_checks) {
+                    this.createChannel("checks",check.name);  
+                    this.log.debug("Created channel "+check.name)
+                } else {
+                    delete old_checks[check.name];
+                }
+                for (const [subkey, subvalue] of Object.entries(check)) {
+                    this.updateStates(subkey, subvalue, "checks."+check.name);
+                }
+            }   
+            
+            for (const [check_name,id] of Object.entries(old_checks)) {
+                this.deleteChannel("checks",check_name); 
             }
+        
+        });
+        
+    }
+
+    updateStates(key, value, root) {
+    
+        let state_obj = { name: key, type: "", role: "", read: true, write: true };    
+        switch(type.get(value)) {
+            case "string":
+                const time = Date.parse(value);
+                if (isNaN(time)) {
+                    state_obj.type = "string"; 
+                    if (key.includes("url")) {
+                        state_obj.role =  "text.url";
+                    } else {
+                        state_obj.role =  "text";       
+                    }                       
+                } else {
+                    state_obj.type = "number"; 
+                    state_obj.role =  "value.time";  
+                    value = time;                              
+                }
+                break;
+            case "number":
+                state_obj.type = "number"; 
+                state_obj.role =  "value";
+                break;
+            case "boolean":
+                state_obj.type = "boolean"; 
+                state_obj.role =  "inidicator";
+                break;
+            case "null":
+                if (key.includes("last_ping") || key.includes("next_ping")) {
+                    state_obj.type = "number"; 
+                    state_obj.role =  "value.time";                      
+                }
+                break;
+            default:
+                this.log.warn("Unhandled DataType: " + type.get(value) + " for " + key);
+                return;  // Do Nothing
         }
-        this.setObjectNotExists(sFolder + "." + oCommon.name, {
-            type: "state",
-            common: oCommon,
-            native: {}  
-        }, (id, error) => {this.setState(sFolder + "." + oCommon.name, oValue, true);}
+
+        this.setObjectNotExists(root + "." + key, {
+                type: "state",
+                common: state_obj,
+                native: {}  
+            }, (id, error) => {this.setState(root + "." + key, value, true);}
         );
     }
     
