@@ -1,3 +1,24 @@
+<img src="admin/healthchecks.png" width="64">
+
+# ioBroker.healthchecks
+
+This Adapter interacts with the healthchecks.io API. Either with a [self-hosted server](https://github.com/healthchecks/healthchecks) or with the official [healthchecks.io](https://healthchecks.io/) server. It allows to read and modify existing checks.
+
+## Setup
+
+Just add the servername and a read/write API key to the instance settings.
+
+## Missing features
+ * Create checks
+ * Automatically check object states
+  
+## Changelog
+
+### 0.1
+* (TyrionWarMage) Initial release
+
+
+## License
 MIT License
 
 Copyright (c) 2022 TyrionWarMage
