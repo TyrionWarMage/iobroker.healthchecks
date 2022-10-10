@@ -56,13 +56,8 @@ class Healthchecks extends utils.Adapter {
         return str.replace(new RegExp(find, "g"), replace);
     }
 
-    
-    /**
-     * Is called when databases are connected and adapter received configuration.
-     */
-    async onReady() {
-        let preCheckFailure = false;   //We can't stop the adapter since we need it 4 url and auth check. Make preCheck, if error found don't run main functions 
 
+    createInitialSetup() {
         this.setObjectNotExists("info.connection", {
                 type: "state",
                 common: { name: "Device or service connected", type: "boolean", role: "indicator.connected", read: true, write: false },
@@ -82,7 +77,16 @@ class Healthchecks extends utils.Adapter {
                 common: { name: "Create a check", type: "string", role: "json", read: false, write: true },
                 native: {}  
             }, (id, error) => {this.log.debug("Added create command");}
-        );
+        );        
+    }   
+     
+    /**
+     * Is called when databases are connected and adapter received configuration.
+     */
+    async onReady() {
+        let preCheckFailure = false;   //We can't stop the adapter since we need it 4 url and auth check. Make preCheck, if error found don't run main functions 
+        
+        this.createInitialSetup();
                 
         this.log.debug("Verify config");
         
@@ -174,7 +178,8 @@ class Healthchecks extends utils.Adapter {
                         const key = id.split(".").pop();
                         let params = {};
                         params[key] = state.val;
-                        this.client.updateCheck(uuid.val,params).catch(err => {this.log.error("Check updated failed: "+err)});  
+                        this.client.updateCheck(uuid.val,params)
+                            .catch(err => {this.log.error("Check updated failed: "+err)});  
                     });       
                 }         
             }
