@@ -56,15 +56,34 @@ class Healthchecks extends utils.Adapter {
         return str.replace(new RegExp(find, "g"), replace);
     }
 
+    
     /**
      * Is called when databases are connected and adapter received configuration.
      */
     async onReady() {
         let preCheckFailure = false;   //We can't stop the adapter since we need it 4 url and auth check. Make preCheck, if error found don't run main functions 
 
-        // Reset the connection indicator during startup
+        this.setObjectNotExists("info.connection", {
+                type: "state",
+                common: { name: "Device or service connected", type: "boolean", role: "indicator.connected", read: true, write: false },
+                native: {}  
+            }, (id, error) => {this.log.debug("Added info");}
+        );
         this.setState("info.connection", false, true);
 
+        this.setObjectNotExists("deleteCheck", {
+                type: "state",
+                common: { name: "Delete a check by uuid", type: "string", role: "text", read: false, write: true },
+                native: {}  
+            }, (id, error) => {this.log.debug("Added delete command");}
+        );
+        this.setObjectNotExists("createCheck", {
+                type: "state",
+                common: { name: "Create a check", type: "string", role: "json", read: false, write: true },
+                native: {}  
+            }, (id, error) => {this.log.debug("Added create command");}
+        );
+                
         this.log.debug("Verify config");
         
         //Check refresh interval field, if its's not set, we set it
@@ -97,10 +116,10 @@ class Healthchecks extends utils.Adapter {
                     const device_names = result.map(device => device.common.name)
                     if (!(device_names.includes("checks"))) {
                         this.createDevice("checks", (err,result) => {
-                            this.updateChecks();
+                            this.updateAndSchedule();
                         });    
                     } else {
-                        this.updateChecks();    
+                        this.updateAndSchedule();    
                     }   
                 });     
             } else {
@@ -133,14 +152,31 @@ class Healthchecks extends utils.Adapter {
     onStateChange(id, state) {
         if (state) {
             if (state.from != 'system.adapter.' + this.namespace) {
-                let uuid_key = id.split(".");
-                uuid_key = uuid_key.slice(0,uuid_key.length - 1).join(".") + ".uuid";
-                this.getState(uuid_key,(err,uuid) => {
-                    const key = id.split(".").pop();
-                    let params = {};
-                    params[key] = state.val;
-                    this.client.updateCheck(uuid.val,params).catch(err => {this.log.error("Check updated failed: "+err)});  
-                });             
+                if (id === this.namespace + ".deleteCheck") {
+                    this.client.deleteCheck(state.val)
+                        .then(result => {   
+                                            this.log.error("Delete check succeeded for "+state.val);
+                                            this.updateChecks();
+                                        })
+                        .catch(err => {this.log.error("Delete check failed: "+err)});    
+                } else if (id === this.namespace + ".createCheck") {
+                    const check = JSON.parse(state.val)
+                    this.client.createCheck(check)
+                        .then(result => {
+                                            this.log.error("Create check succeeded.");
+                                            this.updateChecks();
+                                        })
+                        .catch(err => {this.log.error("Create check failed: "+err)});
+                } else {
+                    let uuid_key = id.split(".");
+                    uuid_key = uuid_key.slice(0,uuid_key.length - 1).join(".") + ".uuid";
+                    this.getState(uuid_key,(err,uuid) => {
+                        const key = id.split(".").pop();
+                        let params = {};
+                        params[key] = state.val;
+                        this.client.updateCheck(uuid.val,params).catch(err => {this.log.error("Check updated failed: "+err)});  
+                    });       
+                }         
             }
         } else {
             this.log.debug(`state ${id} deleted`);
@@ -195,34 +231,38 @@ class Healthchecks extends utils.Adapter {
             return false;
        }
     }
-    
+
+    updateAndSchedule() {       
+        this.updateTrigger = setTimeout(() =>this.updateAndSchedule(),this.config.inp_refresh * 60000); 
+        this.updateChecks()  
+    }   
+     
     updateChecks() {
-        //Set Timer for next Update
         this.log.debug("Updating checks");
-        
-        this.updateTrigger = setTimeout(() =>this.updateChecks(),this.config.inp_refresh * 60000);
         
         this.client.getChecks().then(checks => {
             this.getChannelsOf("checks",(err,channels) => {
                 let old_checks = channels.map(channel => channel.common.name);
     
                 for (const check of checks.checks) {
-                    if (!old_checks.includes(check.name)) {
-                        this.createChannel("checks",check.name);  
-                        this.log.debug("Created channel "+check.name)
-                    } else {
-                        old_checks.remove(check.name);
-                    }
-                    
-                    if(!('tz' in check)) {
-                        check['tz'] = null;
-                    }
                     const uuid = check.ping_url.split("/").pop();
                     check.uuid = uuid;
                     let identifier = check.uuid;
                     if ('name' in check) {
                         identifier = check.name;
                     }
+                    
+                    if (!old_checks.includes(identifier)) {
+                        this.createChannel("checks",identifier);  
+                        this.log.debug("Created channel "+identifier)
+                    } else {
+                        old_checks.remove(identifier);
+                    }
+                    
+                    if(!('tz' in check)) {
+                        check['tz'] = null;
+                    }
+
                     for (const [subkey, subvalue] of Object.entries(check)) {
                         this.updateStates(subkey, subvalue, "checks."+identifier);
                     }
@@ -252,7 +292,7 @@ class Healthchecks extends utils.Adapter {
                 if (isNaN(time)) {
                     state_obj.type = "string"; 
                     if (key.includes("url")) {
-                        state_obj.role =  "text.url";
+                        state_obj.role =  "url";
                     } else {
                         state_obj.role =  "text";       
                     }                       
@@ -274,6 +314,10 @@ class Healthchecks extends utils.Adapter {
                 if (key.includes("last_ping") || key.includes("next_ping")) {
                     state_obj.type = "number"; 
                     state_obj.role =  "value.time";                      
+                }
+                if (key == 'tz') {
+                    state_obj.type = "string";  
+                    state_obj.role =  "text"; 
                 }
                 break;
             default:
