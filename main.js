@@ -77,7 +77,20 @@ class Healthchecks extends utils.Adapter {
                 common: { name: "Create a check", type: "string", role: "json", read: false, write: true },
                 native: {}  
             }, (id, error) => {this.log.debug("Added create command");}
-        );        
+        ); 
+        
+        this.setObjectNotExists("pingSuccess", {
+                type: "state",
+                common: { name: "Ping uuid with success message", type: "string", role: "text", read: false, write: true },
+                native: {}  
+            }, (id, error) => {this.log.debug("Added pingSuccess command");}
+        );
+        this.setObjectNotExists("pingFail", {
+                type: "state",
+                common: { name: "Ping uuid with failed message", type: "string", role: "text", read: false, write: true },
+                native: {}  
+            }, (id, error) => {this.log.debug("Added pingFailed command");}
+        );       
     }   
      
     /**
@@ -159,7 +172,7 @@ class Healthchecks extends utils.Adapter {
                 if (id === this.namespace + ".deleteCheck") {
                     this.client.deleteCheck(state.val)
                         .then(result => {   
-                                            this.log.error("Delete check succeeded for "+state.val);
+                                            this.log.info("Delete check succeeded for "+state.val);
                                             this.updateChecks();
                                         })
                         .catch(err => {this.log.error("Delete check failed: "+err)});    
@@ -167,10 +180,20 @@ class Healthchecks extends utils.Adapter {
                     const check = JSON.parse(state.val)
                     this.client.createCheck(check)
                         .then(result => {
-                                            this.log.error("Create check succeeded.");
+                                            this.log.info("Create check succeeded.");
                                             this.updateChecks();
                                         })
                         .catch(err => {this.log.error("Create check failed: "+err)});
+                } else if (id === this.namespace + ".pingSuccess") {
+                    const pingClient = new HealthChecksPingClient({baseUrl: this.config.inp_url_ping, uuid: state.val});
+                    pingClient.success()
+                        .then(result => { this.log.info("Pinged success for "+state.val) })
+                        .catch(err => {this.log.error("Ping success failed: "+err)});
+                } else if (id === this.namespace + ".pingFail") {
+                    const pingClient = new HealthChecksPingClient({baseUrl: this.config.inp_url_ping, uuid: state.val});
+                    pingClient.fail()
+                        .then(result => { this.log.info("Pinged fail for "+state.val) })
+                        .catch(err => {this.log.error("Ping fail failed: "+err)});                
                 } else {
                     let uuid_key = id.split(".");
                     uuid_key = uuid_key.slice(0,uuid_key.length - 1).join(".") + ".uuid";

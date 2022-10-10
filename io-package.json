@@ -48,11 +48,12 @@
         "js-controller": ">=1.4.2"
       }
     ],
-    "installedFrom": "TyrionWarMage/iobroker.healthchecks#4e35e253eb2cea9c71c07a6b70772b8976af5c21"
+    "installedFrom": "D:\\Files\\Workspace\\iobroker\\ioBroker.healthchecks"
   },
   "native": {
     "sToken": "",
     "inp_url": "https://healthchecks.io",
+    "inp_url_ping": "https://hc-ping.com/",
     "inp_apikey": "",
     "inp_refresh": 1
   },

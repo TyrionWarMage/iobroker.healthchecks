@@ -8,7 +8,7 @@ It is assumed, that check names are unique (excluding checks that do not have a 
 
 ## Setup
 
-Just add the servername and a read/write API key to the instance settings.
+Just add the API server, ping server and a read/write API key to the instance settings. Note, that self-hosted ping servers usually have a "/ping" ending.
 
   
 ## Changelog

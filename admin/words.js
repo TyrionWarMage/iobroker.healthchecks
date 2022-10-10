@@ -15,12 +15,20 @@ systemDictionary = {
         "de": "Healthchecks API-Konfiguration",
     },
     "lab_url_short": {
-        "en": "URL",
-        "de": "URL",
+        "en": "API URL",
+        "de": "API URL",
     },
     "lab_url_long": {
-        "en": "URL to API  |  e.g. https://healthchecks.io",
-        "de": "URL zu API | z.B. https://healthchecks.io",
+        "en": "URL to API  |  e.g. https://healthchecks.io or https://myserver.com",
+        "de": "URL zu API | z.B. https://healthchecks.io or https://myserver.com",
+    },
+    "lab_url_ping_short": {
+        "en": "Ping URL",
+        "de": "Ping URL",
+    },
+    "lab_url_ping_long": {
+        "en": "URL to ping server  |  e.g. https://hc-ping.com/ or https://myserver.com/ping",
+        "de": "URL zu ping server | z.B. https://hc-ping.com/ or https://myserver.com/ping",
     },
     "lab_apikey_short": {
         "en": "Healthchecks API Key",
