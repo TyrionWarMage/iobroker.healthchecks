@@ -29,18 +29,19 @@ class Healthchecks extends utils.Adapter {
      * @param {Partial<ioBroker.AdapterOptions>} [options={}]
      */
     constructor(options) {
-        // @ts-ignore
+        
         super({
             ...options,
             name: "healthchecks",
         });
         this.on("ready", this.onReady.bind(this));
-        //this.on("objectChange", this.onObjectChange.bind(this));
+        this.on("objectChange", this.onObjectChange.bind(this));
         this.on("stateChange", this.onStateChange.bind(this));
         this.on("message", this.onMessage.bind(this));
         this.on("unload", this.onUnload.bind(this));
         
         this.updateTrigger = null;   
+
     }
 
     decrypt(key, value) {
@@ -55,7 +56,6 @@ class Healthchecks extends utils.Adapter {
     replaceAll(str, find, replace) {
         return str.replace(new RegExp(find, "g"), replace);
     }
-
 
     createInitialSetup() {
         this.setObjectNotExists("info.connection", {
@@ -147,6 +147,7 @@ class Healthchecks extends utils.Adapter {
         }
                        
         this.subscribeStates("*");
+        this.subscribeForeignObjects('*');
     }
 
     /**
@@ -166,24 +167,70 @@ class Healthchecks extends utils.Adapter {
         }
     }
 
+    onObjectChange(id, obj) {
+        if (obj && obj.common) {
+            this.getChannelsOf("checks",(err,channels) => {
+                const checks = channels.map(channel => channel.common.name);
+                const identifier = id.replaceAll(".","_");
+                if (obj.common.custom && obj.common.custom[this.namespace] && typeof obj.common.custom[this.namespace] === 'object' && obj.common.custom[this.namespace].enabled) {
+                    this.log.debug("Enabled for "+id);  
+                    let params = JSON.parse(JSON.stringify(obj.common.custom[this.namespace]));
+                    params.name = identifier;
+                    delete params["enabled"];
+                    if (checks.includes(identifier)) {
+                        this.updateCheck(this.namespace+".checks."+identifier,params)
+                    } else {
+                        this.createCheck(params);
+                    }  
+                } else {     
+                    if (checks.includes(identifier)) {
+                        this.log.debug("Disabled for "+identifier); 
+                        this.deleteCheck(this.namespace+".checks."+identifier);    
+                    }
+                }
+            });
+        }
+    }
+    
+    deleteCheck(name) {
+        this.getState(name + ".uuid",(err,uuid) => {
+            this.deleteCheckByUUID(uuid.val);     
+        });           
+    }
+    
+    deleteCheckByUUID(uuid) {
+        this.client.deleteCheck(uuid)
+            .then(result => {   
+                                this.log.info("Delete check succeeded for "+uuid);
+                                this.updateChecks();
+                            })
+            .catch(err => {this.log.error("Delete check failed: "+err)});           
+    }
+    
+    createCheck(params) {
+        this.client.createCheck(params)
+            .then(result => {
+                                this.log.info("Create check succeeded.");
+                                this.updateChecks();
+                            })
+            .catch(err => {this.log.error("Create check failed: "+err)});        
+    }
+    
+    updateCheck(name,params) {
+        this.getState(name + ".uuid",(err,uuid) => {
+            this.client.updateCheck(uuid.val,params)
+                .catch(err => {this.log.error("Check updated failed: "+err)});     
+        });        
+    }
+    
     onStateChange(id, state) {
         if (state) {
             if (state.from != 'system.adapter.' + this.namespace) {
                 if (id === this.namespace + ".deleteCheck") {
-                    this.client.deleteCheck(state.val)
-                        .then(result => {   
-                                            this.log.info("Delete check succeeded for "+state.val);
-                                            this.updateChecks();
-                                        })
-                        .catch(err => {this.log.error("Delete check failed: "+err)});    
+                    this.deleteCheckByUUID(state.val);
                 } else if (id === this.namespace + ".createCheck") {
                     const check = JSON.parse(state.val)
-                    this.client.createCheck(check)
-                        .then(result => {
-                                            this.log.info("Create check succeeded.");
-                                            this.updateChecks();
-                                        })
-                        .catch(err => {this.log.error("Create check failed: "+err)});
+                    this.createCheck(check);
                 } else if (id === this.namespace + ".pingSuccess") {
                     const pingClient = new HealthChecksPingClient({baseUrl: this.config.inp_url_ping, uuid: state.val});
                     pingClient.success()
@@ -195,15 +242,12 @@ class Healthchecks extends utils.Adapter {
                         .then(result => { this.log.info("Pinged fail for "+state.val) })
                         .catch(err => {this.log.error("Ping fail failed: "+err)});                
                 } else {
-                    let uuid_key = id.split(".");
-                    uuid_key = uuid_key.slice(0,uuid_key.length - 1).join(".") + ".uuid";
-                    this.getState(uuid_key,(err,uuid) => {
-                        const key = id.split(".").pop();
-                        let params = {};
-                        params[key] = state.val;
-                        this.client.updateCheck(uuid.val,params)
-                            .catch(err => {this.log.error("Check updated failed: "+err)});  
-                    });       
+                    let params = {};
+                    const key = id.split(".").pop();
+                    params[key] = state.val;
+                    let fullname = id.split(".");
+                    fullname = fullname.slice(0,fullname.length - 1).join(".");
+                    this.updateCheck(fullname,params);
                 }         
             }
         } else {

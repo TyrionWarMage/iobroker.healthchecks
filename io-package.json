@@ -79,8 +79,8 @@
         "def": false
       },
       "native": {
-        "pingInterval": 86400,
-        "graceTime": 360,
+        "timeout": 86400,
+        "grace": 3600,
         "tags": ""
       }
     }
