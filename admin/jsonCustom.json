@@ -1,0 +1,33 @@
+{
+  "i18n": true,
+  "type": "panel",
+  "items": {
+    "Ping Interval": {
+      "newLine": true,
+      "type": "number",
+      "sm": 6,
+      "min": 1,
+      "max": 31536000,
+      "defaultFunc": "customObj && customObj.common && customObj.common.type === 'number' ? instanceObj.native.pingInterval : 86400",
+      "label": "Ping Interval",
+      "help": "Ping Interval Help"
+    },
+    "Grace Time": {
+      "newLine": true,
+      "type": "number",
+      "sm": 6,
+      "min": 1,
+      "max": 31536000,
+      "defaultFunc": "customObj && customObj.common && customObj.common.type === 'number' ? instanceObj.native.graceTime : 360",
+      "label": "Grace Time",
+      "help": "Grace Time Help"
+    },
+    "Tags": {
+      "newLine": true,
+      "type": "text",
+      "sm": 6,
+      "label": "Tags",
+      "help": "Tags Help"
+    },
+  }
+}

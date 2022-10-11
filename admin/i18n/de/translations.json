@@ -1,0 +1,8 @@
+{
+    "Ping Interval": "Ping Interval",
+    "Ping Interval Help": "Zeitabstand zwischen Pings in Sekunden",
+    "Grace Time": "Toleranz",
+    "Grace Time Help": "Toleranz der Ping Zeit in Sekunden",
+    "Tags": "Tags",
+    "Tags Help": "List der Tags, mit Komma getrennt"
+}
