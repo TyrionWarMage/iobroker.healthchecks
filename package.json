@@ -19,7 +19,9 @@
   },
   "dependencies": {
     "@iobroker/adapter-core": "^2.3.0",
-    "get-type": "^1.1.0"
+    "get-type": "^1.1.0",
+    "node-schedule": "^2.1.0",
+    "healthchecks-io-client": "^1.0.4"
   },
   "devDependencies": {
     "@iobroker/testing": "^2.2.0",
@@ -42,7 +44,6 @@
     "request": "^2.88.2",
     "sinon": "^8.1.1",
     "sinon-chai": "^3.5.0",
-    "healthchecks-io-client": "^1.0.4"
   },
   "main": "main.js",
   "scripts": {

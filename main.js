@@ -8,6 +8,7 @@
 // you need to create an adapter
 const utils = require("@iobroker/adapter-core");
 const type = require("get-type");
+const schedule = require('node-schedule');
 const {
   HealthChecksPingClient,
   HealthChecksApiClient
@@ -158,6 +159,7 @@ class Healthchecks extends utils.Adapter {
      */
     onUnload(callback) {
         try {
+            schedule.gracefulShutdown();
             if (this.updateTrigger) {
                 clearInterval(this.updateTrigger);
                 this.updateTrigger = null;
@@ -332,12 +334,12 @@ class Healthchecks extends utils.Adapter {
     schedulePing(check) {
         const schedule_pattern = "* */"+(check.timeout/60)+" * * *";
         if (check.uuid in this.schedules) {
-            clearSchedule(this.schedules[check.uuid]);    
+            this.schedules[check.uuid].cancel();    
         };
-        const sch = schedule(schedule_pattern, function() {
+        const job = schedule.scheduleJob(schedule_pattern, function() {
             this.ping(check.uuid,true);   
         });
-        this.schedules[check.uuid] = sch; 
+        this.schedules[check.uuid] = job; 
         this.log.debug("Scheduled "+check.uuid);       
     }   
       
