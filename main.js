@@ -167,35 +167,45 @@ class Healthchecks extends utils.Adapter {
         }
     }
 
+    getUUIDbyName(channels,name) {
+        for (const check of channels) {
+            if (check.common && check.common.name == name) {
+                const uuid = check._id.split(".");
+                return uuid[uuid.length - 1];
+            }   
+        }
+        return null;    
+    }
+    
     onObjectChange(id, obj) {
-        if (obj && obj.common) {
+        if (obj && obj.common && obj.from != 'system.adapter.' + this.namespace) {
             this.getChannelsOf("checks",(err,channels) => {
-                const checks = channels.map(channel => channel.common.name);
-                const identifier = id.replaceAll(".","_");
+                const name = obj.common.name +" from "+id.split(".")[0];
+                const identifier = this.getUUIDbyName(channels,name);
                 if (obj.common.custom && obj.common.custom[this.namespace] && typeof obj.common.custom[this.namespace] === 'object' && obj.common.custom[this.namespace].enabled) {
                     this.log.debug("Enabled for "+id);  
                     let params = JSON.parse(JSON.stringify(obj.common.custom[this.namespace]));
-                    params.name = identifier;
+                    params.name = name;
                     delete params["enabled"];
-                    if (checks.includes(identifier)) {
-                        this.updateCheck(this.namespace+".checks."+identifier,params)
+                    if (identifier) {
+                        this.updateCheckByUUID(identifier,params);
                     } else {
+                        if (!params.tags) {
+                            params.tags = "";
+                        } else {
+                            params.tags = params.tags + " ";   
+                        }
+                        params.tags = params.tags + "iobroker "+id.split(".")[0]
                         this.createCheck(params);
                     }  
                 } else {     
-                    if (checks.includes(identifier)) {
+                    if (identifier) {
                         this.log.debug("Disabled for "+identifier); 
-                        this.deleteCheck(this.namespace+".checks."+identifier);    
+                        this.deleteCheckByUUID(identifier);    
                     }
                 }
             });
         }
-    }
-    
-    deleteCheck(name) {
-        this.getState(name + ".uuid",(err,uuid) => {
-            this.deleteCheckByUUID(uuid.val);     
-        });           
     }
     
     deleteCheckByUUID(uuid) {
@@ -216,11 +226,9 @@ class Healthchecks extends utils.Adapter {
             .catch(err => {this.log.error("Create check failed: "+err)});        
     }
     
-    updateCheck(name,params) {
-        this.getState(name + ".uuid",(err,uuid) => {
-            this.client.updateCheck(uuid.val,params)
-                .catch(err => {this.log.error("Check updated failed: "+err)});     
-        });        
+    updateCheckByUUID(uuid,params) {
+        this.client.updateCheck(uuid,params)
+                .catch(err => {this.log.error("Check updated failed: "+err)});            
     }
     
     onStateChange(id, state) {
@@ -246,8 +254,9 @@ class Healthchecks extends utils.Adapter {
                     const key = id.split(".").pop();
                     params[key] = state.val;
                     let fullname = id.split(".");
-                    fullname = fullname.slice(0,fullname.length - 1).join(".");
-                    this.updateCheck(fullname,params);
+                    this.getState(fullname.slice(0,fullname.length - 1).join(".") + ".uuid", (err,uuid) => {
+                        this.updateCheckByUUID(uuid.val,params);   
+                    });
                 }         
             }
         } else {
@@ -319,13 +328,14 @@ class Healthchecks extends utils.Adapter {
                 for (const check of checks.checks) {
                     const uuid = check.ping_url.split("/").pop();
                     check.uuid = uuid;
-                    let identifier = check.uuid;
-                    if ('name' in check) {
-                        identifier = check.name;
-                    }
+                    const identifier = check.uuid;
                     
                     if (!old_checks.includes(identifier)) {
-                        this.createChannel("checks",identifier);  
+                        this.setObjectNotExists("checks."+identifier, {
+                                type: "channel",
+                                common: {name: check.name},
+                                native: {}  
+                            });
                         this.log.debug("Created channel "+identifier)
                     } else {
                         old_checks.remove(identifier);
@@ -396,12 +406,17 @@ class Healthchecks extends utils.Adapter {
                 this.log.warn("Unhandled DataType: " + type.get(value) + " for " + key);
                 return;
         }
-
         this.setObjectNotExists(root + "." + key, {
                 type: "state",
                 common: state_obj,
                 native: {}  
-            }, (id, error) => {this.setState(root + "." + key, value, true);}
+            }, (err, id) => {
+                this.setState(root + "." + key, value, true, (err) => {
+                    if(err) {
+                        this.log.debug(err);   
+                    }
+                });
+            }
         );
     }
     

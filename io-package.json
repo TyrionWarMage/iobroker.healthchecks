@@ -79,8 +79,8 @@
         "def": false
       },
       "native": {
-        "timeout": 86400,
-        "grace": 3600,
+        "timeout": 600,
+        "grace": 60,
         "tags": ""
       }
     }
