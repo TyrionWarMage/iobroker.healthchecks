@@ -8,7 +8,7 @@
       "sm": 6,
       "min": 1,
       "max": 31536000,
-      "defaultFunc": "customObj && customObj.common && customObj.common.type === 'number' ? instanceObj.native.timeout : 600",
+      "defaultFunc": "customObj && customObj.common && customObj.common.type === 'number' ? instanceObj.native.timeout : 10",
       "label": "Ping Interval",
       "help": "Ping Interval Help"
     },
@@ -18,7 +18,7 @@
       "sm": 6,
       "min": 1,
       "max": 31536000,
-      "defaultFunc": "customObj && customObj.common && customObj.common.type === 'number' ? instanceObj.native.grace : 60",
+      "defaultFunc": "customObj && customObj.common && customObj.common.type === 'number' ? instanceObj.native.grace : 1",
       "label": "Grace Time",
       "help": "Grace Time Help"
     },

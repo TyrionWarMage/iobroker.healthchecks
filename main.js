@@ -90,7 +90,9 @@ class Healthchecks extends utils.Adapter {
                 common: { name: "Ping uuid with failed message", type: "string", role: "text", read: false, write: true },
                 native: {}  
             }, (id, error) => {this.log.debug("Added pingFailed command");}
-        );       
+        ); 
+        
+        this.schedules = {};      
     }   
      
     /**
@@ -187,15 +189,17 @@ class Healthchecks extends utils.Adapter {
                     let params = JSON.parse(JSON.stringify(obj.common.custom[this.namespace]));
                     params.name = name;
                     delete params["enabled"];
+                    if (!params.tags) {
+                        params.tags = "";
+                    } else {
+                        params.tags = params.tags + " ";   
+                    }
+                    params.grace = params.grace * 60;
+                    params.timeout = params.timeout * 60;
+                    params.tags = params.tags + "iobroker "+id.split(".")[0]
                     if (identifier) {
                         this.updateCheckByUUID(identifier,params);
                     } else {
-                        if (!params.tags) {
-                            params.tags = "";
-                        } else {
-                            params.tags = params.tags + " ";   
-                        }
-                        params.tags = params.tags + "iobroker "+id.split(".")[0]
                         this.createCheck(params);
                     }  
                 } else {     
@@ -230,6 +234,19 @@ class Healthchecks extends utils.Adapter {
         this.client.updateCheck(uuid,params)
                 .catch(err => {this.log.error("Check updated failed: "+err)});            
     }
+
+    ping(uuid,state) {
+        const pingClient = new HealthChecksPingClient({baseUrl: this.config.inp_url_ping, uuid: uuid});
+        if (state) {
+            pingClient.fail()
+                .then(result => { this.log.info("Pinged fail for "+state.val) })
+                .catch(err => {this.log.error("Ping fail failed: "+err)});            
+        } else {
+            pingClient.success()
+                .then(result => { this.log.info("Pinged success for "+uuid) })
+                .catch(err => {this.log.error("Ping success failed: "+err)});      
+        }     
+    }    
     
     onStateChange(id, state) {
         if (state) {
@@ -240,15 +257,9 @@ class Healthchecks extends utils.Adapter {
                     const check = JSON.parse(state.val)
                     this.createCheck(check);
                 } else if (id === this.namespace + ".pingSuccess") {
-                    const pingClient = new HealthChecksPingClient({baseUrl: this.config.inp_url_ping, uuid: state.val});
-                    pingClient.success()
-                        .then(result => { this.log.info("Pinged success for "+state.val) })
-                        .catch(err => {this.log.error("Ping success failed: "+err)});
+                    this.ping(state.val,true);
                 } else if (id === this.namespace + ".pingFail") {
-                    const pingClient = new HealthChecksPingClient({baseUrl: this.config.inp_url_ping, uuid: state.val});
-                    pingClient.fail()
-                        .then(result => { this.log.info("Pinged fail for "+state.val) })
-                        .catch(err => {this.log.error("Ping fail failed: "+err)});                
+                    this.ping(state.val,false);             
                 } else {
                     let params = {};
                     const key = id.split(".").pop();
@@ -317,13 +328,28 @@ class Healthchecks extends utils.Adapter {
         this.updateTrigger = setTimeout(() =>this.updateAndSchedule(),this.config.inp_refresh * 60000); 
         this.updateChecks()  
     }   
-     
+
+    schedulePing(check) {
+        const schedule_pattern = "* */"+(check.timeout/60)+" * * *";
+        if (check.uuid in this.schedules) {
+            clearSchedule(this.schedules[check.uuid]);    
+        };
+        const sch = schedule(schedule_pattern, function() {
+            this.ping(check.uuid,true);   
+        });
+        this.schedules[check.uuid] = sch; 
+        this.log.debug("Scheduled "+check.uuid);       
+    }   
+      
     updateChecks() {
         this.log.debug("Updating checks");
         
         this.client.getChecks().then(checks => {
             this.getChannelsOf("checks",(err,channels) => {
-                let old_checks = channels.map(channel => channel.common.name);
+                let old_checks = channels.map(channel => {
+                    const uuid = channel._id.split("."); 
+                    return uuid[uuid.length - 1];   
+                });
     
                 for (const check of checks.checks) {
                     const uuid = check.ping_url.split("/").pop();
@@ -336,8 +362,18 @@ class Healthchecks extends utils.Adapter {
                                 common: {name: check.name},
                                 native: {}  
                             });
+                        if (check.tags && check.tags.includes("iobroker")) {
+                            this.schedulePing(check);
+                        }
                         this.log.debug("Created channel "+identifier)
                     } else {
+                        if (check.tags && check.tags.includes("iobroker")) {
+                            this.getState("checks."+identifier+".timeout", (err, val) => {
+                                if (val.val != check.timeout) {
+                                    this.schedulePing(check);    
+                                }    
+                            });                   
+                        }
                         old_checks.remove(identifier);
                     }
                     
@@ -351,6 +387,10 @@ class Healthchecks extends utils.Adapter {
                 }   
                 
                 for (const check_name of old_checks) {
+                    if (check_name in this.schedules) {
+                        clearSchedule(this.schedules[check_name]);
+                        delete this.schedules[check_name];
+                    }
                     this.deleteChannel("checks",check_name); 
                 }
             
