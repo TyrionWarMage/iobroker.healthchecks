@@ -232,9 +232,13 @@ class Healthchecks extends utils.Adapter {
             .catch(err => {this.log.error("Create check failed: "+err)});        
     }
     
-    updateCheckByUUID(uuid,params) {
+    async updateCheckByUUID(uuid,params) {
         this.client.updateCheck(uuid,params)
-                .catch(err => {this.log.error("Check updated failed: "+err)});            
+            .then(result => {
+                                this.log.info("Update check succeeded.");
+                                this.updateChecks();
+                            })
+            .catch(err => {this.log.error("Check updated failed: "+err)});            
     }
 
     ping(uuid,state) {
@@ -334,13 +338,21 @@ class Healthchecks extends utils.Adapter {
     schedulePing(check) {
         const schedule_pattern = "* */"+(check.timeout/60)+" * * *";
         if (check.uuid in this.schedules) {
-            this.schedules[check.uuid].cancel();    
-        };
-        const job = schedule.scheduleJob(schedule_pattern, function() {
-            this.ping(check.uuid,true);   
-        });
-        this.schedules[check.uuid] = job; 
-        this.log.debug("Scheduled "+check.uuid);       
+            if (this.schedules[check.uuid].reschedule(schedule_pattern)) {
+                this.log.debug("Rescheduled "+check.uuid+" with "+schedule_pattern);    
+            } else {
+                this.log.error("Failed reschulding "+check.uuid)
+            }             
+        } else {
+            const baseUrl = this.config.inp_url_ping;
+            const job = schedule.scheduleJob(schedule_pattern, function() {
+                const pingClient = new HealthChecksPingClient({baseUrl: baseUrl, uuid: check.uuid});
+                pingClient.success();
+            });
+            this.log.debug("Added scheduler for "+check.uuid+" with pattern "+schedule_pattern);
+            this.schedules[check.uuid] = job; 
+            this.log.debug("Scheduled "+check.uuid);      
+        }    
     }   
       
     updateChecks() {
@@ -370,8 +382,9 @@ class Healthchecks extends utils.Adapter {
                         this.log.debug("Created channel "+identifier)
                     } else {
                         if (check.tags && check.tags.includes("iobroker")) {
+                            const scheduler = this.schedules;
                             this.getState("checks."+identifier+".timeout", (err, val) => {
-                                if (val.val != check.timeout) {
+                                if (val.val != check.timeout || !(check.uuid in scheduler)) {
                                     this.schedulePing(check);    
                                 }    
                             });                   
@@ -390,7 +403,7 @@ class Healthchecks extends utils.Adapter {
                 
                 for (const check_name of old_checks) {
                     if (check_name in this.schedules) {
-                        clearSchedule(this.schedules[check_name]);
+                        this.schedules[check_name].cancel();
                         delete this.schedules[check_name];
                     }
                     this.deleteChannel("checks",check_name); 
