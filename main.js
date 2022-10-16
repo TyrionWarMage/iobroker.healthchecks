@@ -171,9 +171,10 @@ class Healthchecks extends utils.Adapter {
         }
     }
 
-    getUUIDbyName(channels,name) {
+    async getUUIDbyDesc(channels,desc) {
         for (const check of channels) {
-            if (check.common && check.common.name == name) {
+            const stateid = await this.getStateAsync(check._id + ".desc");
+            if (desc == stateid.val) {
                 const uuid = check._id.split(".");
                 return uuid[uuid.length - 1];
             }   
@@ -181,40 +182,38 @@ class Healthchecks extends utils.Adapter {
         return null;    
     }
     
-    onObjectChange(id, obj) {
+    async onObjectChange(id, obj) {
         if (obj && obj.common && obj.from != 'system.adapter.' + this.namespace) {
-            this.getChannelsOf("checks",(err,channels) => {
-                const name = id;
-                const identifier = this.getUUIDbyName(channels,name);
-                if (obj.common.custom && obj.common.custom[this.namespace] && typeof obj.common.custom[this.namespace] === 'object' && obj.common.custom[this.namespace].enabled) {
-                    this.log.debug("Enabled for "+id);  
-                    let params = JSON.parse(JSON.stringify(obj.common.custom[this.namespace]));
-                    params.name = name;
-                    delete params["enabled"];
-                    if (!params.tags) {
-                        params.tags = "";
-                    } else {
-                        params.tags = params.tags + " ";   
-                    }
-                    params.grace = params.grace * 60;
-                    params.timeout = params.timeout * 60;
-                    params.tags = params.tags + "iobroker "+id.split(".")[0]
-                    if (params.invert) {
-                        params.tags = params.tags + " invert";
-                    }
-                    delete params["invert"];
-                    if (identifier) {
-                        this.updateCheckByUUID(identifier,params);
-                    } else {
-                        this.createCheck(params);
-                    }  
-                } else {     
-                    if (identifier) {
-                        this.log.debug("Disabled for "+identifier); 
-                        this.deleteCheckByUUID(identifier);    
-                    }
+            const channels = await this.getChannelsOfAsync("checks");
+            const identifier = await this.getUUIDbyDesc(channels, id);
+            if (obj.common.custom && obj.common.custom[this.namespace] && typeof obj.common.custom[this.namespace] === 'object' && obj.common.custom[this.namespace].enabled) {
+                this.log.debug("Enabled for "+id);  
+                let params = JSON.parse(JSON.stringify(obj.common.custom[this.namespace]));
+                params.desc = id;
+                delete params["enabled"];
+                if (!params.tags) {
+                    params.tags = "";
+                } else {
+                    params.tags = params.tags + " ";   
                 }
-            });
+                params.grace = params.grace * 60;
+                params.timeout = params.timeout * 60;
+                params.tags = params.tags + "iobroker "+id.split(".")[0]
+                if (params.invert) {
+                    params.tags = params.tags + " invert";
+                }
+                delete params["invert"];
+                if (identifier) {
+                    this.updateCheckByUUID(identifier,params);
+                } else {
+                    this.createCheck(params);
+                }  
+            } else {     
+                if (identifier) {
+                    this.log.debug("Disabled for "+identifier); 
+                    this.deleteCheckByUUID(identifier);    
+                }
+            }
         }
     }
     
@@ -361,7 +360,7 @@ class Healthchecks extends utils.Adapter {
         }
         const adapter = this;
         const job = schedule.scheduleJob(schedule_pattern, function() {
-            adapter.conditionalPing(check.uuid,check.name,check.tags.includes("invert"));
+            adapter.conditionalPing(check.uuid,check.desc,check.tags.includes("invert"));
         });
         this.log.debug("Added scheduler for "+check.uuid+" with pattern "+schedule_pattern);
         this.schedules[check.uuid] = job;    

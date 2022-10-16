@@ -1,4 +1,6 @@
 {
+    "Name": "Name",
+    "Name Help": "Healthcheck Name, muss einzigartig sein.",
     "Ping Interval": "Ping Interval",
     "Ping Interval Help": "Interval between pings in minutes",
     "Grace Time": "Grace",

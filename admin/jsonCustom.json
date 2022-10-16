@@ -2,6 +2,13 @@
   "i18n": true,
   "type": "panel",
   "items": {
+    "name": {
+      "newLine": true,
+      "type": "text",
+      "sm": 6,
+      "label": "Name",
+      "help": "Name Help"
+    },
     "timeout": {
       "newLine": true,
       "type": "number",
