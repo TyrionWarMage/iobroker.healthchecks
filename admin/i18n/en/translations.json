@@ -1,0 +1,10 @@
+{
+    "Ping Interval": "Ping Interval",
+    "Ping Interval Help": "Interval between pings in minutes",
+    "Grace Time": "Grace",
+    "Grace Time Help": "Ping grace period in minutes",
+    "Tags": "Tags",
+    "Tags Help": "Comma separated list of tags",
+    "Invert": "Invert existince check",
+    "Invert Help": "If true, false,undefined,empty,etc. are considerd a success"
+}

@@ -1,0 +1,40 @@
+{
+  "i18n": true,
+  "type": "panel",
+  "items": {
+    "timeout": {
+      "newLine": true,
+      "type": "number",
+      "sm": 6,
+      "min": 1,
+      "max": 31536000,
+      "defaultFunc": "customObj && customObj.common && customObj.common.type === 'number' ? instanceObj.native.timeout : 10",
+      "label": "Ping Interval",
+      "help": "Ping Interval Help"
+    },
+    "grace": {
+      "newLine": true,
+      "type": "number",
+      "sm": 6,
+      "min": 1,
+      "max": 31536000,
+      "defaultFunc": "customObj && customObj.common && customObj.common.type === 'number' ? instanceObj.native.grace : 1",
+      "label": "Grace Time",
+      "help": "Grace Time Help"
+    },
+    "tags": {
+      "newLine": true,
+      "type": "text",
+      "sm": 6,
+      "label": "Tags",
+      "help": "Tags Help"
+    },
+    "invert": {
+      "newLine": true,
+      "type": "checkbox",
+      "sm": 6,
+      "label": "Invert",
+      "help": "Invert Help"
+    }
+  }
+}

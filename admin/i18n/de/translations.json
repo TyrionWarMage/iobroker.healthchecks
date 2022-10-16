@@ -1,0 +1,10 @@
+{
+    "Ping Interval": "Ping Interval",
+    "Ping Interval Help": "Zeitabstand zwischen Pings in Minuten",
+    "Grace Time": "Toleranz",
+    "Grace Time Help": "Toleranz der Ping Zeit in Minuten",
+    "Tags": "Tags",
+    "Tags Help": "List der Tags, mit Komma getrennt",
+    "Invert": "Invertierte Prüfung",
+    "Invert Help": "Falls aktiviert: false,undefined,empty,etc. gelten als erfolg."
+}
