@@ -258,14 +258,14 @@ class Healthchecks extends utils.Adapter {
             });   
     }
     
-    ping(uuid,state) {
+    ping(uuid,success) {
         const pingClient = new HealthChecksPingClient({baseUrl: this.config.inp_url_ping, uuid: uuid});
-        if (state) {
-            pingClient.fail()
+        if (success) {
+            pingClient.success()
                 .then(result => { this.log.info("Pinged fail for "+uuid) })
                 .catch(err => {this.log.error("Ping fail failed: "+err)});            
         } else {
-            pingClient.success()
+            pingClient.fail()
                 .then(result => { this.log.info("Pinged success for "+uuid) })
                 .catch(err => {this.log.error("Ping success failed: "+err)});      
         }     
