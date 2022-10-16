@@ -246,6 +246,7 @@ class Healthchecks extends utils.Adapter {
     }
 
     conditionalPing(uuid,state,invert) {
+        this.log.debug("Trying conditional ping for "+state);
         this.getForeignStateAsync(state)
             .then(val => {
                 if (val.val) {
@@ -262,7 +263,7 @@ class Healthchecks extends utils.Adapter {
         const pingClient = new HealthChecksPingClient({baseUrl: this.config.inp_url_ping, uuid: uuid});
         if (state) {
             pingClient.fail()
-                .then(result => { this.log.info("Pinged fail for "+state.val) })
+                .then(result => { this.log.info("Pinged fail for "+uuid) })
                 .catch(err => {this.log.error("Ping fail failed: "+err)});            
         } else {
             pingClient.success()
@@ -353,7 +354,7 @@ class Healthchecks extends utils.Adapter {
     }   
 
     schedulePing(check) {
-        const schedule_pattern = "* */"+(check.timeout/60)+" * * *";
+        const schedule_pattern = "*/"+(check.timeout/60)+" * * * *";
         if (check.uuid in this.schedules) {
             this.schedules[check.uuid].cancel();
             this.log.debug("Canceled "+check.uuid);               
