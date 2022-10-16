@@ -29,5 +29,12 @@
       "label": "Tags",
       "help": "Tags Help"
     },
+    "invert": {
+      "newLine": true,
+      "type": "checkbox",
+      "sm": 6,
+      "label": "Invert",
+      "help": "Invert Help"
+    }
   }
 }

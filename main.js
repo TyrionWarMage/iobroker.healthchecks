@@ -184,7 +184,7 @@ class Healthchecks extends utils.Adapter {
     onObjectChange(id, obj) {
         if (obj && obj.common && obj.from != 'system.adapter.' + this.namespace) {
             this.getChannelsOf("checks",(err,channels) => {
-                const name = obj.common.name +" from "+id.split(".")[0];
+                const name = id;
                 const identifier = this.getUUIDbyName(channels,name);
                 if (obj.common.custom && obj.common.custom[this.namespace] && typeof obj.common.custom[this.namespace] === 'object' && obj.common.custom[this.namespace].enabled) {
                     this.log.debug("Enabled for "+id);  
@@ -199,6 +199,10 @@ class Healthchecks extends utils.Adapter {
                     params.grace = params.grace * 60;
                     params.timeout = params.timeout * 60;
                     params.tags = params.tags + "iobroker "+id.split(".")[0]
+                    if (params.invert) {
+                        params.tags = params.tags + " invert";
+                    }
+                    delete params["invert"];
                     if (identifier) {
                         this.updateCheckByUUID(identifier,params);
                     } else {
@@ -241,6 +245,19 @@ class Healthchecks extends utils.Adapter {
             .catch(err => {this.log.error("Check updated failed: "+err)});            
     }
 
+    conditionalPing(uuid,state,invert) {
+        this.getForeignStateAsync(state)
+            .then(val => {
+                if (val.val) {
+                    this.ping(uuid,!invert);
+                } else {
+                    this.ping(uuid,invert);
+                }             
+            }).catch(err => {
+                this.log.error(err);    
+            });   
+    }
+    
     ping(uuid,state) {
         const pingClient = new HealthChecksPingClient({baseUrl: this.config.inp_url_ping, uuid: uuid});
         if (state) {
@@ -338,21 +355,16 @@ class Healthchecks extends utils.Adapter {
     schedulePing(check) {
         const schedule_pattern = "* */"+(check.timeout/60)+" * * *";
         if (check.uuid in this.schedules) {
-            if (this.schedules[check.uuid].reschedule(schedule_pattern)) {
-                this.log.debug("Rescheduled "+check.uuid+" with "+schedule_pattern);    
-            } else {
-                this.log.error("Failed reschulding "+check.uuid)
-            }             
-        } else {
-            const baseUrl = this.config.inp_url_ping;
-            const job = schedule.scheduleJob(schedule_pattern, function() {
-                const pingClient = new HealthChecksPingClient({baseUrl: baseUrl, uuid: check.uuid});
-                pingClient.success();
-            });
-            this.log.debug("Added scheduler for "+check.uuid+" with pattern "+schedule_pattern);
-            this.schedules[check.uuid] = job; 
-            this.log.debug("Scheduled "+check.uuid);      
-        }    
+            this.schedules[check.uuid].cancel();
+            this.log.debug("Canceled "+check.uuid+" with "+schedule_pattern);               
+        }
+        const adapter = this;
+        const job = schedule.scheduleJob(schedule_pattern, function() {
+            adapter.conditionalPing(check.uuid,check.name,check.tags.includes("invert"));
+        });
+        this.log.debug("Added scheduler for "+check.uuid+" with pattern "+schedule_pattern);
+        this.schedules[check.uuid] = job; 
+        this.log.debug("Scheduled "+check.uuid);       
     }   
       
     updateChecks() {

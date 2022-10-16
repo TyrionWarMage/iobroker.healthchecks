@@ -85,7 +85,8 @@
       "native": {
         "timeout": 10,
         "grace": 1,
-        "tags": ""
+        "tags": "",
+        "invert": false
       }
     }
   ]
