@@ -356,15 +356,14 @@ class Healthchecks extends utils.Adapter {
         const schedule_pattern = "* */"+(check.timeout/60)+" * * *";
         if (check.uuid in this.schedules) {
             this.schedules[check.uuid].cancel();
-            this.log.debug("Canceled "+check.uuid+" with "+schedule_pattern);               
+            this.log.debug("Canceled "+check.uuid);               
         }
         const adapter = this;
         const job = schedule.scheduleJob(schedule_pattern, function() {
             adapter.conditionalPing(check.uuid,check.name,check.tags.includes("invert"));
         });
         this.log.debug("Added scheduler for "+check.uuid+" with pattern "+schedule_pattern);
-        this.schedules[check.uuid] = job; 
-        this.log.debug("Scheduled "+check.uuid);       
+        this.schedules[check.uuid] = job;    
     }   
       
     updateChecks() {
@@ -395,11 +394,21 @@ class Healthchecks extends utils.Adapter {
                     } else {
                         if (check.tags && check.tags.includes("iobroker")) {
                             const scheduler = this.schedules;
-                            this.getState("checks."+identifier+".timeout", (err, val) => {
-                                if (val.val != check.timeout || !(check.uuid in scheduler)) {
-                                    this.schedulePing(check);    
-                                }    
-                            });                   
+                            if (!(check.uuid in scheduler)) {
+                                this.schedulePing(check);    
+                            } else {
+                                this.getState("checks."+identifier+".timeout", (err, val) => {
+                                    if (val.val != check.timeout) {
+                                        this.schedulePing(check);    
+                                    } else {
+                                        this.getState("checks."+identifier+".tags", (err, val) => {
+                                            if (val.val != check.tags) {
+                                                this.schedulePing(check);    
+                                            }  
+                                        });                                         
+                                    }   
+                                });       
+                            }               
                         }
                         old_checks.remove(identifier);
                     }
